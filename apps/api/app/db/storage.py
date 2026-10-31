@@ -250,33 +250,74 @@ class SOCStorage:
         alert_1.linked_case_id = case_1.case_id
         alert_2.linked_case_id = case_1.case_id
 
-        # Seed Knowledge Graph topology for visual viewer
+        # Seed comprehensive Knowledge Graph topology for visual viewer
         self.graph_nodes = [
+            # 1. Assets
             {"id": "A-DC01", "label": "Domain Controller (10.0.1.5)", "type": "asset", "criticality": "core", "val": 25},
             {"id": "A-WEB01", "label": "DMZ Web Server (172.16.0.10)", "type": "asset", "criticality": "core", "val": 20},
             {"id": "A-DB01", "label": "Finance Database (192.168.10.10)", "type": "asset", "criticality": "core", "val": 22},
+            {"id": "A-K8S01", "label": "K8s Ingress Gateway (172.16.0.2)", "type": "asset", "criticality": "core", "val": 20},
+            {"id": "A-WS104", "label": "Finance Workstation (10.0.2.45)", "type": "asset", "criticality": "support", "val": 16},
+            {"id": "A-FW01", "label": "Edge Firewall (10.0.0.1)", "type": "asset", "criticality": "core", "val": 24},
+
+            # 2. MITRE ATT&CK Techniques
             {"id": "T1110", "label": "T1110.001 Password Guessing", "type": "technique", "tactic": "Credential Access", "val": 18},
             {"id": "T1486", "label": "T1486 Data Encrypted for Impact", "type": "technique", "tactic": "Impact", "val": 22},
             {"id": "T1190", "label": "T1190 Exploit Public App", "type": "technique", "tactic": "Initial Access", "val": 18},
-            {"id": "T1071", "label": "T1071 C2 Application Layer", "type": "technique", "tactic": "Command & Control", "val": 19},
-            {"id": "CVE-2024-6387", "label": "CVE-2024-6387 (regreSSHion)", "type": "vulnerability", "cvss": 9.8, "val": 16},
-            {"id": "CVE-2023-46604", "label": "CVE-2023-46604 (ActiveMQ RCE)", "type": "vulnerability", "cvss": 9.8, "val": 15},
-            {"id": "APT28", "label": "APT28 (Fancy Bear)", "type": "apt", "origin": "State-sponsored", "val": 20},
-            {"id": "LockBit", "label": "LockBit 3.0 Syndicate", "type": "apt", "origin": "Ransomware-as-a-Service", "val": 21},
+            {"id": "T1071", "label": "T1071 C2 Web Protocols", "type": "technique", "tactic": "Command & Control", "val": 19},
+            {"id": "T1059", "label": "T1059.001 PowerShell Scripting", "type": "technique", "tactic": "Execution", "val": 17},
+            {"id": "T1021", "label": "T1021.002 SMB Admin Shares", "type": "technique", "tactic": "Lateral Movement", "val": 20},
+            {"id": "T1046", "label": "T1046 Network Service Scan", "type": "technique", "tactic": "Discovery", "val": 16},
+
+            # 3. Known Vulnerabilities (CVE)
+            {"id": "CVE-2024-6387", "label": "CVE-2024-6387 (regreSSHion)", "type": "vulnerability", "cvss": 9.8, "val": 18},
+            {"id": "CVE-2023-46604", "label": "CVE-2023-46604 (ActiveMQ RCE)", "type": "vulnerability", "cvss": 9.8, "val": 17},
+            {"id": "CVE-2024-38077", "label": "CVE-2024-38077 (MadLicense RCE)", "type": "vulnerability", "cvss": 9.8, "val": 19},
+            {"id": "CVE-2024-21413", "label": "CVE-2024-21413 (Outlook Moniker)", "type": "vulnerability", "cvss": 9.8, "val": 16},
+
+            # 4. Threat Actors (APT)
+            {"id": "APT28", "label": "APT28 (Fancy Bear)", "type": "apt", "origin": "State-sponsored", "val": 21},
+            {"id": "LockBit", "label": "LockBit 3.0 Syndicate", "type": "apt", "origin": "Ransomware-as-a-Service", "val": 22},
+            {"id": "Lazarus", "label": "Lazarus Group (Hidden Cobra)", "type": "apt", "origin": "Nation-State Cybercrime", "val": 21},
+
+            # 5. Indicators of Compromise (IOC)
             {"id": "IOC-1", "label": "203.0.113.45 (C2 IP)", "type": "ioc", "ioc_type": "IPv4", "val": 14},
             {"id": "IOC-2", "label": "185.220.101.5 (Tor Exit)", "type": "ioc", "ioc_type": "IPv4", "val": 14},
+            {"id": "IOC-3", "label": "evil-c2-update.xyz (DGA Domain)", "type": "ioc", "ioc_type": "Domain", "val": 15},
+            {"id": "IOC-4", "label": "7b8e19c0a... (LockBit Payload)", "type": "ioc", "ioc_type": "SHA256", "val": 15},
         ]
 
         self.graph_edges = [
+            # Asset - Vulnerability
+            {"source": "A-DB01", "target": "CVE-2024-6387", "label": "VULNERABLE_TO"},
+            {"source": "A-WEB01", "target": "CVE-2023-46604", "label": "VULNERABLE_TO"},
+            {"source": "A-DC01", "target": "CVE-2024-38077", "label": "VULNERABLE_TO"},
+            {"source": "A-WS104", "target": "CVE-2024-21413", "label": "VULNERABLE_TO"},
+
+            # Threat Actors - Techniques
+            {"source": "LockBit", "target": "T1486", "label": "USES_TECHNIQUE"},
+            {"source": "LockBit", "target": "T1059", "label": "USES_TECHNIQUE"},
+            {"source": "LockBit", "target": "T1021", "label": "USES_TECHNIQUE"},
+            {"source": "APT28", "target": "T1071", "label": "USES_TECHNIQUE"},
+            {"source": "APT28", "target": "T1190", "label": "USES_TECHNIQUE"},
+            {"source": "Lazarus", "target": "T1110", "label": "USES_TECHNIQUE"},
+            {"source": "Lazarus", "target": "T1046", "label": "USES_TECHNIQUE"},
+
+            # Threat Actors - IOCs
+            {"source": "IOC-1", "target": "LockBit", "label": "INFRASTRUCTURE_OF"},
+            {"source": "IOC-2", "target": "APT28", "label": "ROUTED_THROUGH"},
+            {"source": "IOC-3", "target": "APT28", "label": "DOMAIN_OWNED_BY"},
+            {"source": "IOC-4", "target": "LockBit", "label": "PAYLOAD_OF"},
+
+            # Attacks - Target Assets
             {"source": "IOC-1", "target": "A-DB01", "label": "ATTACKED"},
             {"source": "T1110", "target": "A-DB01", "label": "TARGETED"},
-            {"source": "A-DB01", "target": "CVE-2024-6387", "label": "VULNERABLE_TO"},
-            {"source": "LockBit", "target": "T1486", "label": "USES_TECHNIQUE"},
-            {"source": "T1486", "target": "A-DC01", "label": "IMPACTED"},
-            {"source": "A-WEB01", "target": "CVE-2023-46604", "label": "VULNERABLE_TO"},
             {"source": "T1190", "target": "A-WEB01", "label": "EXPLOITED"},
-            {"source": "APT28", "target": "T1071", "label": "USES_TECHNIQUE"},
-            {"source": "IOC-2", "target": "APT28", "label": "INFRASTRUCTURE_OF"},
+            {"source": "T1486", "target": "A-DC01", "label": "IMPACTED"},
+            {"source": "T1021", "target": "A-DC01", "label": "LATERAL_PROGRESSION"},
+            {"source": "T1059", "target": "A-WS104", "label": "EXECUTED_ON"},
+            {"source": "A-FW01", "target": "A-K8S01", "label": "ROUTES_TRAFFIC"},
+            {"source": "A-K8S01", "target": "A-WEB01", "label": "LOAD_BALANCES"},
         ]
 
 

@@ -1,7 +1,8 @@
 """
-Asynchronous RAG & LLM Explainer for SOC Alerts.
+Asynchronous RAG & External LLM Explainer for SOC Alerts.
 Retrieves graph context (ATT&CK techniques, vulnerability CVEs, asset context)
-and generates analyst triage summaries and recommended actions using Ollama / fallback engine.
+and generates analyst triage summaries and recommended actions using an External AI/LLM API
+(OpenAI, Azure, Groq, External Ollama, vLLM) with deterministic expert fallback.
 """
 
 from typing import Dict, Any, List, Optional
@@ -12,14 +13,21 @@ import requests
 class RAGExplainer:
     def __init__(
         self,
-        ollama_url: Optional[str] = None,
-        model_name: str = "llama3:latest",
-        timeout: float = 1.0,
+        provider: Optional[str] = None,
+        api_base: Optional[str] = None,
+        api_key: Optional[str] = None,
+        model_name: Optional[str] = None,
+        timeout: float = 3.0,
     ):
-        self.ollama_url = ollama_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        self.model_name = os.getenv("OLLAMA_MODEL", model_name)
+        self.provider = (provider or os.getenv("LLM_PROVIDER", "openai")).lower()
+        self.api_base = api_base or os.getenv("LLM_API_BASE", "https://api.openai.com/v1")
+        self.api_key = api_key or os.getenv("LLM_API_KEY", "")
+        self.model_name = model_name or os.getenv("LLM_MODEL", "gpt-4o-mini")
         self.timeout = timeout
-        self.enabled = os.getenv("OLLAMA_ENABLED", "false").lower() in ("true", "1", "yes")
+        
+        # Check if enabled
+        enabled_val = os.getenv("LLM_ENABLED", os.getenv("OLLAMA_ENABLED", "false")).lower()
+        self.enabled = enabled_val in ("true", "1", "yes")
 
         # ATT&CK technique mapping dictionary for offline / fast path
         self.attack_db = {
@@ -111,8 +119,8 @@ class RAGExplainer:
         context: Dict[str, Any],
     ) -> Dict[str, Any]:
         """
-        Generates contextual RAG analysis for the analyst.
-        Tries Ollama if enabled; otherwise falls back gracefully to deterministic expert synthesis.
+        Generates contextual RAG analysis for the analyst using External AI / LLM.
+        Tries external LLM if enabled; otherwise falls back gracefully to deterministic expert synthesis.
         """
         graph_ctx = self.retrieve_graph_context(alert_dict.get("alert_type", ""), context)
         
@@ -127,21 +135,50 @@ class RAGExplainer:
                 f"- AHP Risk Score: {ahp_result.get('final_risk_score')} ({ahp_result.get('risk_level')})\n"
                 f"- MITRE ATT&CK: {graph_ctx['technique_id']} - {graph_ctx['technique_name']}\n"
                 f"- Target Criticality: {graph_ctx['target_criticality']}\n"
-                f"Provide a concise summary hypothesis and recommended triage steps."
+                f"Provide a concise 2-sentence summary hypothesis and prioritized containment recommendations."
             )
+
             try:
-                res = requests.post(
-                    f"{self.ollama_url}/api/generate",
-                    json={
+                # 1. External Ollama format
+                if self.provider == "ollama":
+                    url = f"{self.api_base.rstrip('/')}/api/generate"
+                    res = requests.post(
+                        url,
+                        json={
+                            "model": self.model_name,
+                            "prompt": prompt,
+                            "stream": False,
+                        },
+                        timeout=self.timeout,
+                    )
+                    if res.status_code == 200:
+                        explanation_text = res.json().get("response")
+
+                # 2. OpenAI-compatible format (OpenAI, Groq, Together, vLLM, OpenRouter, Azure)
+                else:
+                    url = f"{self.api_base.rstrip('/')}/chat/completions"
+                    headers = {"Content-Type": "application/json"}
+                    if self.api_key:
+                        headers["Authorization"] = f"Bearer {self.api_key}"
+
+                    payload = {
                         "model": self.model_name,
-                        "prompt": prompt,
-                        "stream": False,
-                    },
-                    timeout=self.timeout,
-                )
-                if res.status_code == 200:
-                    explanation_text = res.json().get("response")
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": "You are a senior cybersecurity incident responder assisting in real-time SOC alert triage."
+                            },
+                            {"role": "user", "content": prompt}
+                        ],
+                        "max_tokens": 300,
+                        "temperature": 0.2,
+                    }
+                    res = requests.post(url, json=payload, headers=headers, timeout=self.timeout)
+                    if res.status_code == 200:
+                        data = res.json()
+                        explanation_text = data["choices"][0]["message"]["content"]
             except Exception:
+                # If external LLM times out or is unreachable, continue cleanly with fallback
                 pass
 
         if not explanation_text:

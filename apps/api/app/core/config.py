@@ -31,10 +31,12 @@ class Settings:
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
     NEO4J_URI: str = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 
-    # Ollama LLM
-    OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-    OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "llama3:latest")
-    OLLAMA_ENABLED: bool = os.getenv("OLLAMA_ENABLED", "false").lower() in ("true", "1", "yes")
+    # External AI / LLM Settings (OpenAI, Azure, Groq, External Ollama, vLLM)
+    LLM_PROVIDER: str = os.getenv("LLM_PROVIDER", "openai")
+    LLM_API_BASE: str = os.getenv("LLM_API_BASE", "https://api.openai.com/v1")
+    LLM_API_KEY: str = os.getenv("LLM_API_KEY", "")
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
+    LLM_ENABLED: bool = os.getenv("LLM_ENABLED", "false").lower() in ("true", "1", "yes")
 
 
 settings = Settings()
