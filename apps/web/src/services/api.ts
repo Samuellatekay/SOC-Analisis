@@ -48,6 +48,16 @@ export const socApi = {
     return res.json();
   },
 
+  async ingestWazuh(payload: any): Promise<EnrichedAlert[]> {
+    const res = await fetch(`${API_BASE}/alerts/ingest/wazuh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error('Failed to ingest Wazuh alert');
+    return res.json();
+  },
+
   async getCases(status?: CaseStatus): Promise<Case[]> {
     const query = status ? `?status=${status}` : '';
     const res = await fetch(`${API_BASE}/cases${query}`);

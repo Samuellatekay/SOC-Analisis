@@ -1,0 +1,76 @@
+[
+  {
+    "timestamp": "2026-10-31T05:12:30.123+0000",
+    "rule": {
+      "level": 10,
+      "description": "sshd: Attempt to login using a non-existent user (SSH Brute Force)",
+      "id": "5710",
+      "mitre": {
+        "id": ["T1110.001"],
+        "tactic": ["Credential Access"],
+        "technique": ["Password Guessing"]
+      }
+    },
+    "agent": {
+      "id": "001",
+      "name": "srv-prod-db01",
+      "ip": "192.168.10.10"
+    },
+    "data": {
+      "srcip": "203.0.113.45",
+      "dstip": "192.168.10.10",
+      "dstport": "22",
+      "protocol": "TCP"
+    },
+    "full_log": "Oct 31 05:12:30 srv-prod-db01 sshd[4045]: Failed password for invalid user root from 203.0.113.45 port 54822 ssh2",
+    "id": "1730351550.91024"
+  },
+  {
+    "timestamp": "2026-10-31T05:15:42.500+0000",
+    "rule": {
+      "level": 12,
+      "description": "Web shell command execution detected via Apache / Nginx access log",
+      "id": "31101",
+      "mitre": {
+        "id": ["T1059.004"],
+        "tactic": ["Execution"],
+        "technique": ["Unix Shell"]
+      }
+    },
+    "agent": {
+      "id": "002",
+      "name": "srv-dmz-web01",
+      "ip": "172.16.0.10"
+    },
+    "data": {
+      "srcip": "198.51.100.88",
+      "dstip": "172.16.0.10",
+      "dstport": "443",
+      "protocol": "TCP"
+    },
+    "full_log": "198.51.100.88 - - [31/Oct/2026:05:15:42 +0000] \"GET /uploads/shell.php?cmd=cat%20/etc/passwd HTTP/1.1\" 200 4521",
+    "id": "1730351742.88120"
+  },
+  {
+    "timestamp": "2026-10-31T05:18:10.000+0000",
+    "rule": {
+      "level": 2,
+      "description": "Routine periodic cron session opened for user root",
+      "id": "502",
+      "mitre": {}
+    },
+    "agent": {
+      "id": "003",
+      "name": "srv-test-01",
+      "ip": "10.0.5.20"
+    },
+    "data": {
+      "srcip": "10.0.5.20",
+      "dstip": "10.0.5.20",
+      "dstport": "0",
+      "protocol": "TCP"
+    },
+    "full_log": "Oct 31 05:18:10 srv-test-01 CRON[1299]: (root) CMD (/usr/local/bin/healthcheck.sh)",
+    "id": "1730351890.1102"
+  }
+]

@@ -1,16 +1,59 @@
 import React, { useState } from 'react';
-import { X, Sparkles, Send, ShieldAlert, Cpu } from 'lucide-react';
+import { X, Sparkles, Send, FileCode, CheckCircle2 } from 'lucide-react';
+import { socApi } from '../../services/api';
 
 interface SimulatorModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSimulate: (payload: { raw_alert: any; context?: any }) => Promise<void>;
+  onAlertsUpdated?: () => Promise<void>;
 }
 
-export const SimulatorModal: React.FC<SimulatorModalProps> = ({ isOpen, onClose, onSimulate }) => {
+export const SimulatorModal: React.FC<SimulatorModalProps> = ({
+  isOpen,
+  onClose,
+  onSimulate,
+  onAlertsUpdated,
+}) => {
   if (!isOpen) return null;
 
+  const [activeTab, setActiveTab] = useState<'presets' | 'wazuh'>('presets');
   const [loading, setLoading] = useState(false);
+  const [wazuhError, setWazuhError] = useState<string | null>(null);
+
+  // Sample Wazuh Log default text
+  const defaultWazuhLog = JSON.stringify(
+    {
+      timestamp: "2026-10-31T05:12:30.123+0000",
+      rule: {
+        level: 10,
+        description: "sshd: Attempt to login using a non-existent user (SSH Brute Force)",
+        id: "5710",
+        mitre: {
+          id: ["T1110.001"],
+          tactic: ["Credential Access"],
+          technique: ["Password Guessing"]
+        }
+      },
+      agent: {
+        id: "001",
+        name: "srv-prod-db01",
+        ip: "192.168.10.10"
+      },
+      data: {
+        srcip: "203.0.113.45",
+        dstip: "192.168.10.10",
+        dstport: "22",
+        protocol: "TCP"
+      },
+      full_log: "Oct 31 05:12:30 srv-prod-db01 sshd[4045]: Failed password for invalid user root from 203.0.113.45 port 54822 ssh2",
+      id: "1730351550.91024"
+    },
+    null,
+    2
+  );
+
+  const [wazuhInput, setWazuhInput] = useState(defaultWazuhLog);
 
   const presets = [
     {
@@ -100,6 +143,23 @@ export const SimulatorModal: React.FC<SimulatorModalProps> = ({ isOpen, onClose,
     }
   };
 
+  const handleIngestWazuh = async () => {
+    setWazuhError(null);
+    setLoading(true);
+    try {
+      const parsed = JSON.parse(wazuhInput);
+      await socApi.ingestWazuh(parsed);
+      if (onAlertsUpdated) {
+        await onAlertsUpdated();
+      }
+      onClose();
+    } catch (err: any) {
+      setWazuhError(err.message || "Failed to parse or ingest Wazuh JSON.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
       <div className="w-full max-w-xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
@@ -107,43 +167,111 @@ export const SimulatorModal: React.FC<SimulatorModalProps> = ({ isOpen, onClose,
         <div className="p-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/80">
           <div className="flex items-center space-x-2">
             <Sparkles className="w-5 h-5 text-cyan-400" />
-            <h3 className="text-sm font-bold text-white">Live Alert Pipeline Simulator</h3>
+            <h3 className="text-sm font-bold text-white">Ingest &amp; Simulasi Alert</h3>
           </div>
           <button onClick={onClose} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white">
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Modal Body */}
-        <div className="p-5 space-y-4">
-          <p className="text-xs text-slate-400">
-            Select a representative scenario from Guo et al. (2026) to test real-time ingress, FFT-PCC filtering,
-            Conservative Risk Gating, Multi-Agent fusion, and AHP scoring:
-          </p>
+        {/* Modal Tabs */}
+        <div className="flex border-b border-slate-800 bg-slate-950 text-xs px-4">
+          <button
+            onClick={() => setActiveTab('presets')}
+            className={`py-2.5 px-4 font-semibold transition-all border-b-2 ${
+              activeTab === 'presets'
+                ? 'border-cyan-500 text-cyan-400'
+                : 'border-transparent text-slate-400 hover:text-white'
+            }`}
+          >
+            Skenario Preset Paper
+          </button>
+          <button
+            onClick={() => setActiveTab('wazuh')}
+            className={`py-2.5 px-4 font-semibold transition-all border-b-2 flex items-center gap-1.5 ${
+              activeTab === 'wazuh'
+                ? 'border-cyan-500 text-cyan-400'
+                : 'border-transparent text-slate-400 hover:text-white'
+            }`}
+          >
+            <FileCode className="w-3.5 h-3.5" />
+            <span>Kirim Log Wazuh (JSON)</span>
+          </button>
+        </div>
 
-          <div className="space-y-3">
-            {presets.map((preset) => (
-              <div
-                key={preset.id}
-                className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-cyan-500/50 transition-all flex justify-between items-center group"
-              >
-                <div className="space-y-1 max-w-md">
-                  <div className="text-xs font-bold text-white group-hover:text-cyan-300 transition-colors">
-                    {preset.title}
+        {/* Modal Body */}
+        <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+          {activeTab === 'presets' ? (
+            <>
+              <p className="text-xs text-slate-400">
+                Pilih skenario representatif untuk menguji pipeline FFT-PCC, Conservative Risk Gate,
+                Multi-Agent evidence fusion, dan scoring AHP secara langsung:
+              </p>
+
+              <div className="space-y-3">
+                {presets.map((preset) => (
+                  <div
+                    key={preset.id}
+                    className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 hover:border-cyan-500/50 transition-all flex justify-between items-center group"
+                  >
+                    <div className="space-y-1 max-w-md">
+                      <div className="text-xs font-bold text-white group-hover:text-cyan-300 transition-colors">
+                        {preset.title}
+                      </div>
+                      <p className="text-[11px] text-slate-400 leading-relaxed">{preset.desc}</p>
+                    </div>
+                    <button
+                      disabled={loading}
+                      onClick={() => handleRunPreset(preset)}
+                      className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white text-xs font-semibold shrink-0 flex items-center gap-1.5 shadow cursor-pointer"
+                    >
+                      <Send className="w-3 h-3" />
+                      <span>Run</span>
+                    </button>
                   </div>
-                  <p className="text-[11px] text-slate-400 leading-relaxed">{preset.desc}</p>
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-xs font-semibold text-slate-300">
+                  Paste JSON Alert Wazuh (<code className="text-cyan-400">alerts.json</code>):
+                </span>
+                <span className="text-[10px] font-mono text-slate-500">
+                  POST /api/v1/alerts/ingest/wazuh
+                </span>
+              </div>
+
+              <textarea
+                rows={12}
+                value={wazuhInput}
+                onChange={(e) => setWazuhInput(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-cyan-300 focus:outline-none focus:border-cyan-500"
+                placeholder="Paste Wazuh alert JSON here..."
+              />
+
+              {wazuhError && (
+                <div className="p-2.5 rounded-lg bg-red-950/60 border border-red-800 text-red-300 text-xs">
+                  {wazuhError}
                 </div>
+              )}
+
+              <div className="flex justify-between items-center pt-2">
+                <span className="text-[11px] text-slate-400">
+                  Format otomatis dinormalkan ke skema internal &amp; dihitung skor AHP.
+                </span>
                 <button
                   disabled={loading}
-                  onClick={() => handleRunPreset(preset)}
-                  className="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 disabled:opacity-50 text-white text-xs font-semibold shrink-0 flex items-center gap-1.5 shadow"
+                  onClick={handleIngestWazuh}
+                  className="px-4 py-2 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-cyan-600/20 cursor-pointer"
                 >
-                  <Send className="w-3 h-3" />
-                  <span>Run</span>
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Proses Log Wazuh</span>
                 </button>
               </div>
-            ))}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Modal Footer */}
@@ -152,7 +280,7 @@ export const SimulatorModal: React.FC<SimulatorModalProps> = ({ isOpen, onClose,
             onClick={onClose}
             className="px-4 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-white"
           >
-            Cancel
+            Tutup
           </button>
         </div>
       </div>

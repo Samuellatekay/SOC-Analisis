@@ -3,8 +3,8 @@ Alerts REST API Endpoints.
 Provides querying, filtering, detailed scoring breakdown, and ingestion simulation.
 """
 
-from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Query
+from typing import List, Optional, Union, Dict, Any
+from fastapi import APIRouter, HTTPException, Query, Body
 from pydantic import BaseModel
 
 import sys
@@ -13,8 +13,10 @@ sys.path.append(str(Path(__file__).resolve().parents[4]))
 
 from packages.contracts.models import EnrichedAlert, RawAlertInput, RiskLevel, SeverityLevel
 from apps.api.app.db.storage import storage
+from services.engine.adapters.wazuh_adapter import WazuhAdapter
 
 router = APIRouter()
+wazuh_adapter = WazuhAdapter()
 
 
 class AlertSimulationRequest(BaseModel):
@@ -84,3 +86,21 @@ def simulate_ingest_alert(payload: AlertSimulationRequest):
     enriched = storage.engine.process_alert(payload.raw_alert, payload.context or {})
     storage.alerts[enriched.event_id] = enriched
     return enriched
+
+
+@router.post("/ingest/wazuh", response_model=List[EnrichedAlert])
+def ingest_wazuh_alerts(payload: Union[Dict[str, Any], List[Dict[str, Any]]] = Body(...)):
+    """
+    Direct ingestion webhook for Wazuh Manager alerts (/var/ossec/logs/alerts/alerts.json).
+    Accepts a single alert object or a batch list of alerts.
+    """
+    raw_items = payload if isinstance(payload, list) else [payload]
+    results: List[EnrichedAlert] = []
+
+    for item in raw_items:
+        raw_alert, context = wazuh_adapter.parse_alert(item)
+        enriched = storage.engine.process_alert(raw_alert, context)
+        storage.alerts[enriched.event_id] = enriched
+        results.append(enriched)
+
+    return results
